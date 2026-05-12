@@ -362,6 +362,10 @@ class TitleScreen(Screen):
         "EXIT GAME",
     ]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.menu_index = 0
+
     def compose(self):
         """Compose the title screen."""
         yield AnimatedBackground(id="background")
