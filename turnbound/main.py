@@ -103,6 +103,7 @@ class TurnboundApp(App):
         # Push game screen
         self.current_screen = GameScreen()
         self.current_screen.set_arena(self.arena_map)
+        self.current_screen.set_engine_callback(self.handle_input)
         self.push_screen(self.current_screen)
         
         # Update display

@@ -226,6 +226,11 @@ class GameScreen(Screen):
         self.arena_map = {}
         self.entities = []
         self.combat_messages = []
+        self.engine_callback = None
+
+    def set_engine_callback(self, callback) -> None:
+        """Set the callback function for handling input."""
+        self.engine_callback = callback
 
     def compose(self):
         """Compose the game screen."""
@@ -239,6 +244,12 @@ class GameScreen(Screen):
 
     def on_mount(self) -> None:
         """Called when screen is mounted."""
+        # Flush any pending combat messages to the log
+        combat_log = self.query_one("#combat-log", CombatLog)
+        if combat_log and self.combat_messages:
+            for msg, style in self.combat_messages:
+                combat_log.add_message(msg, style)
+        
         self.set_interval(0.1, self._update_display)
 
     def _update_display(self) -> None:
@@ -296,14 +307,22 @@ class GameScreen(Screen):
     def _handle_input(self, action: str) -> None:
         """Handle player input."""
         # Input will be processed by the game engine
-        if "callback" in self.game_state:
-            self.game_state["callback"](action)
+        if self.engine_callback:
+            asyncio.create_task(self.engine_callback(action))
 
     def log_combat(self, message: str, style: str = "") -> None:
         """Add a message to the combat log."""
-        combat_log = self.query_one("#combat-log", CombatLog)
-        if combat_log:
-            combat_log.add_message(message, style)
+        # Store message even if widget not mounted yet
+        self.combat_messages.append((message, style))
+        
+        # Try to add to widget if available
+        try:
+            combat_log = self.query_one("#combat-log", CombatLog)
+            if combat_log:
+                combat_log.add_message(message, style)
+        except Exception:
+            # Widget not ready yet, messages will be shown when mounted
+            pass
 
     def set_arena(self, arena_map: dict) -> None:
         """Set the arena map."""
