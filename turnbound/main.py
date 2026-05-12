@@ -112,7 +112,14 @@ class TurnboundApp(App):
         """Create the player entity with selected character."""
         self.player_id = self.entity_manager.create_entity()
         
-        spawn_x, spawn_y = len(self.arena_map) // 2, len(self.arena_map) // 2
+        # Calculate proper spawn position from arena bounds
+        if self.arena_map:
+            xs = [k[0] for k in self.arena_map.keys()]
+            ys = [k[1] for k in self.arena_map.keys()]
+            spawn_x = (min(xs) + max(xs)) // 2
+            spawn_y = (min(ys) + max(ys)) // 2
+        else:
+            spawn_x, spawn_y = 25, 10  # Default fallback
         
         # Character-specific data
         char_configs = {
