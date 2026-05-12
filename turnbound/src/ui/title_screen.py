@@ -1,13 +1,11 @@
-"""Title screen with animated ASCII art."""
+"""Title screen with animated ASCII art and character selection."""
 
 from textual.app import Screen
-from textual.widgets import Static, Label, Button
+from textual.widgets import Static, Label
 from textual.containers import Container, Vertical, Horizontal
 from textual.reactive import reactive
 from rich.text import Text
-from rich.panel import Panel
 import random
-import asyncio
 
 
 class AnimatedBackground(Static):
@@ -29,24 +27,20 @@ class AnimatedBackground(Static):
                 "y": random.randint(0, 23),
                 "speed": random.uniform(0.1, 0.5),
                 "char": random.choice(["·", "░", "✦", "*"]),
-                "color": random.choice(["#444444", "#666666", "#888888"]),
             })
 
     def render(self) -> Text:
         """Render the animated background."""
         text = Text()
         
-        # Create empty grid
         grid = [[" " for _ in range(80)] for _ in range(24)]
         
-        # Place particles
         for particle in self.particles:
             x = int(particle["x"]) % 80
             y = int(particle["y"]) % 24
             if 0 <= y < 24 and 0 <= x < 80:
                 grid[y][x] = particle["char"]
         
-        # Render grid
         for row in grid:
             for char in row:
                 if char != " ":
@@ -80,7 +74,6 @@ class TitleLogo(Static):
 
     def render(self) -> Text:
         """Render the title logo."""
-        # ASCII art logo
         logo_lines = [
             " ████████╗██╗  ██╗███████╗   ███████╗██╗  ██╗███████╗",
             " ╚══██╔══╝██║  ██║██╔════╝   ██╔════╝╚██╗██╔╝██╔════╝",
@@ -91,15 +84,12 @@ class TitleLogo(Static):
         ]
         
         text = Text()
-        
-        # Glow colors cycling
         glow_colors = ["#ff00ff", "#ff44ff", "#ff88ff", "#ff44ff"]
         base_color = glow_colors[int(self.glow_intensity) % len(glow_colors)]
         
         for line in logo_lines:
             text.append(line + "\n", style=f"bold {base_color}")
         
-        # Subtitle
         text.append("\n", style="dim")
         text.append("   A Turn-Based Survival Roguelike", style="italic #888888")
         
@@ -120,10 +110,9 @@ class MenuButton(Static):
 
     highlighted = reactive(False)
 
-    def __init__(self, label: str, action: str, *args, **kwargs):
+    def __init__(self, label: str, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.label = label
-        self.action = action
 
     def render(self) -> Text:
         """Render the menu button."""
@@ -135,6 +124,189 @@ class MenuButton(Static):
             text.append(f"    {self.label}    ", style="#888888")
         
         return text
+
+
+class CharacterOption(Static):
+    """Character selection option widget."""
+
+    selected = reactive(False)
+
+    def __init__(self, char_data: dict, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.char_data = char_data
+
+    def render(self) -> Text:
+        """Render the character option."""
+        text = Text()
+        prefix = "► " if self.selected else "  "
+        color = self.char_data.get("color", "#ffffff")
+        name = self.char_data.get("name", "Unknown")
+        symbol = self.char_data.get("symbol", "?")
+        
+        if self.selected:
+            text.append(f"{prefix}[bold {color}]{symbol} {name}[/]")
+        else:
+            text.append(f"{prefix}[{color}]{symbol} {name}[/]")
+        
+        return text
+
+
+class CharacterSelectScreen(Screen):
+    """Character selection screen."""
+
+    CSS = """
+    Screen {
+        background: #0a0a1a;
+    }
+    
+    #char-container {
+        layout: vertical;
+        align: center middle;
+        width: 100%;
+        height: 100%;
+    }
+    
+    #title {
+        height: auto;
+        content-align: center top;
+        margin-bottom: 2;
+    }
+    
+    #characters {
+        height: auto;
+        margin-top: 2;
+    }
+    
+    .char-option {
+        height: 3;
+        width: 60;
+        margin: 1;
+        padding: 1;
+    }
+    
+    .char-option.selected {
+        background: #1a1a2e;
+    }
+    
+    #char-description {
+        height: auto;
+        margin-top: 2;
+        padding: 1;
+    }
+    
+    #input-hints {
+        dock: bottom;
+        height: 3;
+        padding: 1;
+    }
+    """
+
+    BINDINGS = [
+        ("up", "char_up", "Navigate Up"),
+        ("down", "char_down", "Navigate Down"),
+        ("enter", "select", "Select"),
+        ("escape", "back", "Back"),
+    ]
+
+    CHARACTERS = [
+        {
+            "id": "executioner",
+            "name": "THE EXECUTIONER",
+            "desc": "Brutal blood-fueled melee fighter. Rage increases power at low HP.",
+            "color": "#ff4444",
+            "symbol": "⚔",
+        },
+        {
+            "id": "astromancer",
+            "name": "THE ASTROMANCER",
+            "desc": "Temporal manipulation. Skills create echoes that repeat after turns.",
+            "color": "#8844ff",
+            "symbol": "✦",
+        },
+        {
+            "id": "plague_saint",
+            "name": "THE PLAGUE SAINT",
+            "desc": "Infection master. Spreads plague and explodes infected enemies.",
+            "color": "#44ff44",
+            "symbol": "☠",
+        },
+        {
+            "id": "mirror_duelist",
+            "name": "THE MIRROR DUELIST",
+            "desc": "Precision fighter. Counters attacks and guarantees critical hits.",
+            "color": "#44ffff",
+            "symbol": "◊",
+        },
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.char_index = 0
+
+    def compose(self):
+        """Compose the character select screen."""
+        with Container(id="char-container"):
+            title = Text("SELECT YOUR CHAMPION", style="bold #ff00ff")
+            yield Static(title, id="title")
+            
+            with Vertical(id="characters"):
+                for i, char in enumerate(self.CHARACTERS):
+                    widget = CharacterOption(char, classes="char-option")
+                    widget.char_id = char["id"]
+                    widget.char_index = i
+                    if i == 0:
+                        widget.selected = True
+                        widget.add_class("selected")
+                    yield widget
+            
+            desc_text = Text(self.CHARACTERS[0]["desc"], style=self.CHARACTERS[0]["color"])
+            yield Static(desc_text, id="char-description")
+        
+        hints = Text()
+        hints.append("↑↓ Select Character\n", style="#666666")
+        hints.append("ENTER Confirm\n", style="#666666")
+        hints.append("ESC Back", style="#666666")
+        yield Static(hints, id="input-hints")
+
+    def on_mount(self) -> None:
+        """Called when screen is mounted."""
+        self._update_selection()
+
+    def _update_selection(self) -> None:
+        """Update which character is highlighted."""
+        widgets = list(self.query(".char-option"))
+        for i, widget in enumerate(widgets):
+            if i == self.char_index:
+                widget.selected = True
+                widget.add_class("selected")
+            else:
+                widget.selected = False
+                widget.remove_class("selected")
+        
+        # Update description
+        char = self.CHARACTERS[self.char_index]
+        desc_widget = self.query_one("#char-description", Static)
+        desc_text = Text(char["desc"], style=char["color"])
+        desc_widget.update(desc_text)
+
+    def action_char_up(self) -> None:
+        """Move selection up."""
+        self.char_index = (self.char_index - 1) % len(self.CHARACTERS)
+        self._update_selection()
+
+    def action_char_down(self) -> None:
+        """Move selection down."""
+        self.char_index = (self.char_index + 1) % len(self.CHARACTERS)
+        self._update_selection()
+
+    def action_select(self) -> None:
+        """Handle character selection."""
+        selected_char = self.CHARACTERS[self.char_index]
+        self.app.start_new_game(selected_char)
+
+    def action_back(self) -> None:
+        """Go back to title screen."""
+        self.app.pop_screen()
 
 
 class TitleScreen(Screen):
@@ -181,8 +353,6 @@ class TitleScreen(Screen):
         ("q", "quit", "Quit"),
     ]
 
-    menu_index = reactive(0)
-
     MENU_OPTIONS = [
         "START GAME",
         "CHARACTERS",
@@ -201,9 +371,8 @@ class TitleScreen(Screen):
             
             with Vertical(id="menu"):
                 for option in self.MENU_OPTIONS:
-                    yield MenuButton(option, option.lower(), classes="menu-item")
+                    yield MenuButton(option, classes="menu-item")
         
-        # Input hints at bottom
         hints = Text()
         hints.append("↑↓ Navigate\n", style="#666666")
         hints.append("ENTER Select\n", style="#666666")
@@ -236,11 +405,12 @@ class TitleScreen(Screen):
         selected = self.MENU_OPTIONS[self.menu_index]
         
         if selected == "START GAME":
-            self.app.push_screen("game")
+            self.app.push_screen("character_select")
+        elif selected == "CHARACTERS":
+            self.app.push_screen("character_select")
         elif selected == "EXIT GAME" or selected == "QUIT":
             self.app.exit()
         else:
-            # Placeholder for other menus
             pass
 
     def action_quit(self) -> None:
