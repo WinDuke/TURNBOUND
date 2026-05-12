@@ -17,7 +17,7 @@ from src.systems.combat_system import CombatSystem
 from src.systems.movement_system import MovementSystem
 from src.systems.ai_system import AISystem
 from src.systems.wave_system import WaveSystem
-from src.ui.title_screen import TitleScreen
+from src.ui.title_screen import TitleScreen, CharacterSelectScreen
 from src.ui.game_screen import GameScreen
 
 
@@ -32,6 +32,7 @@ class TurnboundApp(App):
 
     SCREENS = {
         "title": TitleScreen,
+        "character_select": CharacterSelectScreen,
         "game": GameScreen,
     }
 
@@ -70,8 +71,8 @@ class TurnboundApp(App):
         """Called when app is mounted."""
         self.push_screen("title")
 
-    def start_new_game(self) -> None:
-        """Start a new game session."""
+    def start_new_game(self, character_data: dict = None) -> None:
+        """Start a new game session with selected character."""
         # Reset state
         self.entity_manager.clear()
         self.event_bus.clear()
@@ -81,8 +82,9 @@ class TurnboundApp(App):
         generator = ArenaGenerator(width=50, height=20)
         self.arena_map, self.spawn_anchors = generator.generate("cemetery")
         
-        # Create player
-        self._create_player()
+        # Create player with selected character
+        char_id = character_data.get("id", "executioner") if character_data else "executioner"
+        self._create_player(char_id)
         
         # Initialize systems
         self.combat_system = CombatSystem(self.entity_manager, self.event_bus)
@@ -106,11 +108,74 @@ class TurnboundApp(App):
         # Update display
         self._update_display()
 
-    def _create_player(self) -> None:
-        """Create the player entity."""
+    def _create_player(self, character_id: str = "executioner") -> None:
+        """Create the player entity with selected character."""
         self.player_id = self.entity_manager.create_entity()
         
         spawn_x, spawn_y = len(self.arena_map) // 2, len(self.arena_map) // 2
+        
+        # Character-specific data
+        char_configs = {
+            "executioner": {
+                "symbol": "⚔",
+                "color": "#ff4444",
+                "hp": 120,
+                "energy": 40,
+                "power": 15,
+                "defense": 3,
+                "skills": [
+                    {"id": "cleave", "name": "Cleave", "key": "Q", "range": 2, "damage": 20, "cost": 10, "cooldown": 0},
+                    {"id": "hook", "name": "Chain Hook", "key": "W", "range": 6, "damage": 5, "cost": 15, "cooldown": 0},
+                    {"id": "blood_surge", "name": "Blood Surge", "key": "E", "range": 1, "damage": 25, "cost": 20, "cooldown": 0},
+                    {"id": "execution", "name": "Execution", "key": "R", "range": 1, "damage": 50, "cost": 30, "cooldown": 0},
+                ],
+            },
+            "astromancer": {
+                "symbol": "✦",
+                "color": "#8844ff",
+                "hp": 80,
+                "energy": 80,
+                "power": 12,
+                "defense": 1,
+                "skills": [
+                    {"id": "star_bolt", "name": "Star Bolt", "key": "Q", "range": 8, "damage": 15, "cost": 15, "cooldown": 0},
+                    {"id": "warp_step", "name": "Warp Step", "key": "W", "range": 6, "damage": 0, "cost": 20, "cooldown": 0},
+                    {"id": "echo_seal", "name": "Echo Seal", "key": "E", "range": 0, "damage": 0, "cost": 25, "cooldown": 0},
+                    {"id": "collapse", "name": "Collapse", "key": "R", "range": 5, "damage": 30, "cost": 40, "cooldown": 0},
+                ],
+            },
+            "plague_saint": {
+                "symbol": "☠",
+                "color": "#44ff44",
+                "hp": 90,
+                "energy": 60,
+                "power": 10,
+                "defense": 2,
+                "skills": [
+                    {"id": "rot_touch", "name": "Rot Touch", "key": "Q", "range": 1, "damage": 12, "cost": 10, "cooldown": 0},
+                    {"id": "spore_cloud", "name": "Spore Cloud", "key": "W", "range": 4, "damage": 8, "cost": 20, "cooldown": 0},
+                    {"id": "harvest", "name": "Harvest", "key": "E", "range": 5, "damage": 15, "cost": 25, "cooldown": 0},
+                    {"id": "bloom", "name": "Bloom", "key": "R", "range": 6, "damage": 25, "cost": 35, "cooldown": 0},
+                ],
+            },
+            "mirror_duelist": {
+                "symbol": "◊",
+                "color": "#44ffff",
+                "hp": 85,
+                "energy": 70,
+                "power": 14,
+                "defense": 2,
+                "crit_chance": 0.15,
+                "skills": [
+                    {"id": "feint", "name": "Feint", "key": "Q", "range": 1, "damage": 10, "cost": 15, "cooldown": 0},
+                    {"id": "mirror_step", "name": "Mirror Step", "key": "W", "range": 5, "damage": 0, "cost": 20, "cooldown": 0},
+                    {"id": "riposte", "name": "Riposte", "key": "E", "range": 0, "damage": 0, "cost": 25, "cooldown": 0},
+                    {"id": "perfect_reflection", "name": "Perfect Reflection", "key": "R", "range": 0, "damage": 0, "cost": 35, "cooldown": 0},
+                ],
+            },
+        }
+        
+        config = char_configs.get(character_id, char_configs["executioner"])
         
         # Add components
         self.entity_manager.add_component(
@@ -118,33 +183,28 @@ class TurnboundApp(App):
         )
         self.entity_manager.add_component(
             self.player_id, "renderable", Renderable(
-                symbol="@",
-                color="#00ff00",
+                symbol=config["symbol"],
+                color=config["color"],
                 bold=True,
             )
         )
         self.entity_manager.add_component(
-            self.player_id, "health", Health(current=100, max=100)
+            self.player_id, "health", Health(current=config["hp"], max=config["hp"])
         )
         self.entity_manager.add_component(
-            self.player_id, "energy", Energy(current=50, max=50)
+            self.player_id, "energy", Energy(current=config["energy"], max=config["energy"])
         )
         self.entity_manager.add_component(
             self.player_id, "stats", Stats(
-                power=10,
-                defense=2,
-                crit_chance=0.05,
+                power=config["power"],
+                defense=config["defense"],
+                crit_chance=config.get("crit_chance", 0.05),
                 crit_multiplier=2.0,
             )
         )
         self.entity_manager.add_component(
             self.player_id, "skills", Skills(
-                active=[
-                    {"id": "fireball", "name": "Fireball", "key": "Q", "range": 6, "damage": 15, "cost": 10, "cooldown": 0},
-                    {"id": "dash", "name": "Dash", "key": "W", "range": 4, "damage": 0, "cost": 15, "cooldown": 0},
-                    {"id": "nova", "name": "Nova", "key": "E", "range": 2, "damage": 8, "cost": 20, "cooldown": 0},
-                    {"id": "blink", "name": "Blink", "key": "R", "range": 8, "damage": 0, "cost": 25, "cooldown": 0},
-                ]
+                active=config["skills"]
             )
         )
         self.entity_manager.add_component(
